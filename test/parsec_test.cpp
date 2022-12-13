@@ -213,6 +213,47 @@ testStringPWorksWhenGivenValidInput()
   assert(result.value().second == " 2022");
 }
 
+void
+testManyParsesValidNonEmptyInput()
+{
+  auto parser = many(charP('A'));
+
+  auto result = parser.run("AAA");
+
+  assert(result.isSuccess());
+  assert(result.value().first == std::vector({ 'A', 'A', 'A' }));
+  assert(result.value().second == "");
+}
+
+void
+testManySucceedsEvenWhenItCantParseAnything()
+{
+  auto parser = many(charP('a'));
+
+  auto result = parser.run("Advent of Code");
+
+  assert(result.isSuccess());
+  assert(result.value().first == std::vector<char>());
+  assert(result.value().second == "Advent of Code");
+}
+
+void
+testParsingWhitespace()
+{
+  auto parser = many(anyOf({ ' ', '\n', '\t' }));
+
+  auto result1 = parser.run("ABC");
+  auto result2 = parser.run(" ABC");
+  auto result3 = parser.run("\tABC");
+
+  assert(result1.isSuccess() && result2.isSuccess() && result3.isSuccess());
+  assert(result1.value().second == "ABC");
+  assert(result2.value().first == std::vector({ ' ' }));
+  assert(result2.value().second == "ABC");
+  assert(result3.value().first == std::vector({ '\t' }));
+  assert(result3.value().second == "ABC");
+}
+
 auto
 main() -> int
 {
@@ -228,5 +269,8 @@ main() -> int
   testSequenceTransformsAListOfCharPIntoAListOfCharacters();
   testBuildingASimpleStructWorks();
   testStringPWorksWhenGivenValidInput();
+  testManyParsesValidNonEmptyInput();
+  testManySucceedsEvenWhenItCantParseAnything();
+  testParsingWhitespace();
   return 0;
 }

@@ -271,6 +271,25 @@ choice(const std::initializer_list<Parser<T> >& parsers)
   });
 }
 
+template <typename T>
+[[nodiscard]] constexpr Parser<std::vector<T> >
+many(const Parser<T>& parser) noexcept
+{
+  return Parser<std::vector<T> >([parser](const std::string& input) {
+    std::string remaining = input;
+    std::vector<T> vs{};
+
+    while (1)
+      {
+        auto result = parser.run(remaining);
+        if (result.isFailure())
+          return Parser<std::vector<T> >::result_type::success({ vs, remaining });
+        vs.push_back(result.value().first);
+        remaining = result.value().second;
+      }
+  });
+}
+
 /**
  * Run the second parser, ignoring the result of the first one.
  */
