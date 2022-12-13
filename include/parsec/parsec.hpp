@@ -225,6 +225,9 @@ charP(char c)
   });
 }
 
+/**
+ * Parse a string.
+ */
 Parser<std::string>
 stringP(const std::string& s)
 {
@@ -315,16 +318,38 @@ many1(const Parser<T>& parser) noexcept
       [parser](const std::string& input) -> Parser<std::vector<T> >::result_type {
         // TODO: We could use bind here.
         auto result = parser.run(input);
-
         if (result.isFailure()) return ParserError{ "many1: Failed to match" };
-
         std::vector<T> vs{ result.value().first };
         auto [results, remaining] = many(parser).run(input).value();
-
         std::move(results.begin(), results.end(), vs.begin() + 1);
-
         return make_success(std::move(vs), remaining);
       });
+}
+
+template <typename T>
+[[nodiscard]] constexpr Parser<T>
+option(const T& def, Parser<T> parser)
+{
+  return Parser<T>([def, parser](const std::string& input) {
+    auto result = parser.run(input);
+    if (result.isFailure()) return make_success(def, input);
+    return result;
+  });
+}
+
+/**
+ * Parse a single digit.
+ */
+Parser<char>
+digitP()
+{
+  return anyOf({ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' });
+}
+
+Parser<std::vector<char> >
+digitsP()
+{
+  return many1(digitP());
 }
 
 /**
