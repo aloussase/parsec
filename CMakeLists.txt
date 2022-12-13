@@ -1,16 +1,18 @@
 cmake_minimum_required(VERSION 3.9)
 cmake_policy(VERSION 3.9)
 
-project(parsec LANGUAGES CXX)
+project(parsec
+        LANGUAGES CXX
+        DESCRIPTION "A parser combinator library for C++ inspired by attoparsec.")
 
 set(CMAKE_CXX_STANDARD 20)
 
-include(CTest)
-
 add_library(parsec INTERFACE)
-target_include_directories(parsec INTERFACE .)
+target_include_directories(
+        parsec
+        INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_options(parsec INTERFACE -Wall -Wextra)
+target_compile_features(parsec INTERFACE cxx_std_20)
 
-add_executable(parsec_test parsec_test.cpp)
-target_link_libraries(parsec_test PUBLIC parsec)
-add_test(NAME ParsecTest COMMAND parsec_test)
+add_subdirectory(test)
+
