@@ -2,6 +2,7 @@
 // Created by aloussase on 12/12/22.
 //
 
+#include "parsec/curry.hpp"
 #include "parsec/parsec.hpp"
 
 #include <cassert>
@@ -170,15 +171,10 @@ testBuildingASimpleStructWorks()
     char a, b, c;
   };
 
-  auto mkS = [](char a) {
-    return [a](char b) {
-      return [a, b](char c) {
-        return S{ a, b, c };
-      };
-    };
+  auto mkS = [](char a, char b, char c) {
+    return S{ a, b, c };
   };
-
-  auto parser = mkS % charP('a') * (charP(' ') >> charP('b')) * (charP(' ') >> charP('c'));
+  auto parser = curry3(mkS) % charP('a') * (charP(' ') >> charP('b')) * (charP(' ') >> charP('c'));
 
   auto result = parser.run("a b c");
 
@@ -252,6 +248,14 @@ testParsingWhitespace()
   assert(result2.value().second == "ABC");
   assert(result3.value().first == std::vector({ '\t' }));
   assert(result3.value().second == "ABC");
+}
+
+void
+testMany1FailsWhenItCanMatchAtLeastOnce()
+{
+  auto parser = many1(charP('a'));
+  auto result = parser.run("Advent of Code");
+  assert(result.isFailure());
 }
 
 auto

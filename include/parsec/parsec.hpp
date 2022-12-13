@@ -40,6 +40,8 @@ public:
     Failure,
   };
 
+  ParseResult(const ParserError& err) : ParseResult{ Failure, err } {}
+
   [[nodiscard]] constexpr bool
   isSuccess() const noexcept
   {
@@ -109,6 +111,20 @@ public:
 private:
   function_type parse_fn;
 };
+
+template <typename T>
+typename Parser<T>::result_type
+make_success(const T& value, const std::string& input) noexcept
+{
+  return Parser<T>::result_type::success({ value, input });
+}
+
+template <typename T>
+typename Parser<T>::result_type
+make_failure(const std::string& msg) noexcept
+{
+  return Parser<T>::result_type::failure(ParserError{ msg });
+}
 
 /**
  * Put a value in a Parser context.
@@ -212,10 +228,10 @@ charP(char c)
 Parser<std::string>
 stringP(const std::string& s)
 {
-  return Parser<std::string>([s](const std::string& input) {
+  return Parser<std::string>([s](const std::string& input) -> Parser<std::string>::result_type {
     if (auto pos = input.find(s); pos != std::string::npos)
-      return Parser<std::string>::result_type::success({ s, input.substr(pos + s.length()) });
-    return Parser<std::string>::result_type::failure(ParserError{ "Failed to parse string" });
+      return make_success(s, input.substr(pos + s.length()));
+    return ParserError{ "Failed to parse string" };
   });
 }
 
@@ -226,9 +242,9 @@ template <typename P>
 [[nodiscard]] Parser<char>
 satisfy(P pred) noexcept
 {
-  return Parser<char>([pred](const std::string& input) {
-    if (pred(input[0])) return Parser<char>::result_type::success({ input[0], input.substr(1) });
-    return Parser<char>::result_type::failure(ParserError{ "Failed to satisfy predicate" });
+  return Parser<char>([pred](const std::string& input) -> Parser<char>::result_type {
+    if (pred(input[0])) return make_success(input[0], input.substr(1));
+    return ParserError{ "Failed to satisfy predicate" };
   });
 }
 
@@ -259,15 +275,16 @@ template <typename T>
 [[nodiscard]] constexpr Parser<T>
 choice(const std::initializer_list<Parser<T> >& parsers)
 {
-  return Parser<T>([parsers](const std::string& input) {
+  return Parser<T>([parsers](const std::string& input) -> Parser<T>::result_type {
     for (auto parser : parsers)
       {
         auto result = parser.run(input);
         if (result.isSuccess()) return result;
       }
-    return Parser<T>::result_type::failure(ParserError{
-        "Failed to match any parsers in choice",
-    });
+
+    return ParserError{
+      "Failed to match any parsers in choice",
+    };
   });
 }
 
@@ -275,19 +292,39 @@ template <typename T>
 [[nodiscard]] constexpr Parser<std::vector<T> >
 many(const Parser<T>& parser) noexcept
 {
-  return Parser<std::vector<T> >([parser](const std::string& input) {
-    std::string remaining = input;
-    std::vector<T> vs{};
+  return Parser<std::vector<T> >(
+      [parser](const std::string& input) -> Parser<std::vector<T> >::result_type {
+        std::string remaining = input;
+        std::vector<T> vs{};
 
-    while (1)
-      {
-        auto result = parser.run(remaining);
-        if (result.isFailure())
-          return Parser<std::vector<T> >::result_type::success({ vs, remaining });
-        vs.push_back(result.value().first);
-        remaining = result.value().second;
-      }
-  });
+        while (1)
+          {
+            auto result = parser.run(remaining);
+            if (result.isFailure()) return make_success(std::move(vs), remaining);
+            vs.push_back(result.value().first);
+            remaining = result.value().second;
+          }
+      });
+}
+
+template <typename T>
+[[nodiscard]] constexpr Parser<std::vector<T> >
+many1(const Parser<T>& parser) noexcept
+{
+  return Parser<std::vector<T> >(
+      [parser](const std::string& input) -> Parser<std::vector<T> >::result_type {
+        // TODO: We could use bind here.
+        auto result = parser.run(input);
+
+        if (result.isFailure()) return ParserError{ "many1: Failed to match" };
+
+        std::vector<T> vs{ result.value().first };
+        auto [results, remaining] = many(parser).run(input).value();
+
+        std::move(results.begin(), results.end(), vs.begin() + 1);
+
+        return make_success(std::move(vs), remaining);
+      });
 }
 
 /**
