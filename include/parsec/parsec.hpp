@@ -19,7 +19,7 @@ namespace parsec
 class ParserError
 {
 public:
-  ParserError(const std::string& errmsg) : errmsg_{ errmsg } {}
+  ParserError(std::string errmsg) : errmsg_{ std::move(errmsg) } {}
 
   [[nodiscard]] std::string
   msg() const noexcept
@@ -41,7 +41,7 @@ public:
     Failure,
   };
 
-  ParseResult(const ParserError& err) : ParseResult{ Failure, err } {}
+  ParseResult(ParserError err) : ParseResult{ Failure, std::move(err) } {}
 
   [[nodiscard]] constexpr bool
   isSuccess() const noexcept
@@ -87,10 +87,7 @@ public:
   }
 
 private:
-  constexpr explicit ParseResult(result_type type, T&& value)
-      : type_{ type }, value_{ std::forward<T>(value) }
-  {
-  }
+  constexpr explicit ParseResult(result_type type, T value) : type_{ type }, value_{ value } {}
   explicit ParseResult(result_type type, ParserError value) : type_{ type }, value_{ value } {}
 
   result_type type_;
@@ -104,9 +101,9 @@ public:
   using result_type = ParseResult<std::pair<T, std::string> >;
   using function_type = std::function<result_type(const std::string&)>;
 
-  constexpr explicit Parser(function_type f) : parse_fn(std::move(f)) {}
+  constexpr explicit Parser(const function_type& f) : parse_fn(f) {}
 
-  constexpr ~Parser() {}
+  constexpr ~Parser() = default;
 
   [[nodiscard]] constexpr result_type
   run(const std::string& input) const noexcept
@@ -129,17 +126,10 @@ maybeResult(typename Parser<T>::result_type result)
 }
 
 template <typename T>
-typename Parser<T>::result_type
-make_success(const T& value, const std::string& input) noexcept
+constexpr auto
+make_success(T value, const std::string& input) noexcept
 {
-  return Parser<T>::result_type::success({ value, input });
-}
-
-template <typename T>
-typename Parser<T>::result_type
-make_failure(const std::string& msg) noexcept
-{
-  return Parser<T>::result_type::failure(ParserError{ msg });
+  return Parser<T>::result_type::success(std::pair{ value, input });
 }
 
 /**
@@ -256,29 +246,33 @@ sequence(const std::vector<Parser<T> >& parsers) noexcept
  * Parses any character that satisfies the given predicate.
  */
 template <typename P>
-[[nodiscard]] Parser<char>
-satisfy(P pred, const std::string& errmsg = "satisfy: Failed to satisfy predicate") noexcept
+[[nodiscard]] auto
+satisfy(P predicate, const std::string& errmsg) noexcept
 {
-  return Parser<char>([pred, errmsg](const std::string& input) -> Parser<char>::result_type {
-    return pred(input[0]) ? make_success(input[0], input.substr(1)) : ParserError{ errmsg };
+  return Parser<char>([predicate, errmsg](const std::string& input) -> Parser<char>::result_type {
+    if (input.empty()) return ParserError{ "Empty input!" };
+    if (predicate(input[0])) return make_success(input[0], input.substr(1));
+    return ParserError{ errmsg };
   });
 }
 
 /**
  * Parse a single character.
  */
-Parser<char>
-charP(char charToMatch)
+[[nodiscard]] static Parser<char>
+charP(char charToMatch) noexcept
 {
-  return satisfy([charToMatch](char c) {
-    return charToMatch == c;
-  });
+  return satisfy(
+      [charToMatch](char c) {
+        return charToMatch == c;
+      },
+      std::string{ "charP: Failed to parse character: " } + charToMatch);
 }
 
 /**
  * Parse a string.
  */
-Parser<std::string>
+[[nodiscard]] static Parser<std::string>
 stringP(const std::string& s)
 {
   return Parser<std::string>([s](const std::string& input) -> Parser<std::string>::result_type {
@@ -289,59 +283,40 @@ stringP(const std::string& s)
 }
 
 /**
- * Parse any single one of the specified characters.
+ * Return the result of the first parser that succeeds.
  */
-[[nodiscard]] Parser<char>
-anyOf(const std::initializer_list<char>& chars)
+template <typename... Parsers>
+[[nodiscard]] constexpr auto
+choice(Parsers&&... parsers)
 {
-  return Parser<char>([chars](const std::string& input) -> Parser<char>::result_type {
-    for (auto c : chars)
-      {
-        auto result = charP(c).run(input);
-        if (result.isSuccess()) return result;
-      }
-    // TODO: Provide better error message;
-    return ParserError{ "Failed to match any characters" };
-  });
+  return (... | std::forward<Parsers>(parsers));
 }
 
 /**
- * Return the result of the first parser that succeeds.
+ * Parse any single one of the specified characters.
  */
-template <typename T>
-[[nodiscard]] constexpr Parser<T>
-choice(const std::initializer_list<Parser<T> >& parsers)
+template <typename... Chars>
+[[nodiscard]] constexpr auto
+anyOf(Chars&&... chars)
 {
-  return Parser<T>([parsers](const std::string& input) -> Parser<T>::result_type {
-    for (auto parser : parsers)
-      {
-        auto result = parser.run(input);
-        if (result.isSuccess()) return result;
-      }
-
-    return ParserError{
-      "Failed to match any parsers in choice",
-    };
-  });
+  return choice(charP(std::forward<Chars>(chars))...);
 }
 
 template <typename T>
 [[nodiscard]] constexpr auto
 many(const Parser<T>& parser) noexcept
 {
-  return Parser<std::list<T> >(
-      [parser](const std::string& input) -> Parser<std::list<T> >::result_type {
-        std::string remaining = input;
-        std::list<T> xs{};
-
-        while (1)
-          {
-            auto result = parser.run(remaining);
-            if (result.isFailure()) return make_success(std::move(xs), remaining);
-            xs.push_back(result.value().first);
-            remaining = result.value().second;
-          }
-      });
+  return Parser<std::list<T> >([parser](const std::string& input) {
+    std::string remaining = input;
+    std::list<T> xs{};
+    while (1)
+      {
+        auto result = parser.run(remaining);
+        if (result.isFailure()) return make_success(std::move(xs), std::move(remaining));
+        xs.push_back(std::move(result.value().first));
+        remaining = std::move(result.value().second);
+      }
+  });
 }
 
 template <typename T>
@@ -365,21 +340,6 @@ template <typename T>
 option(const T& def, Parser<T> parser)
 {
   return parser | pure(def);
-}
-
-/**
- * Parse a single digit.
- */
-Parser<char>
-digitP()
-{
-  return anyOf({ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' });
-}
-
-Parser<std::list<char> >
-digitsP()
-{
-  return many1(digitP());
 }
 
 /**
@@ -454,8 +414,7 @@ operator|(const Parser<T>& p1, const Parser<T>& p2)
 {
   return Parser<T>([p1, p2](const std::string& input) {
     auto result = p1.run(input);
-    if (result.isSuccess()) return result;
-    return p2.run(input);
+    return result.isSuccess() ? result : p2.run(input);
   });
 }
 

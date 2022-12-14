@@ -75,11 +75,7 @@ void
 testChoiceCanParseWhenGivenValidAlternatives()
 {
   // Arrange
-  auto parser = choice({
-      charP('a'),
-      charP('o'),
-      charP('o'),
-  });
+  auto parser = choice(charP('a'), charP('o'), charP('c'));
 
   // Act
   auto result = parser.run("aoc");
@@ -94,33 +90,20 @@ void
 testChoiceFailsWhenNoneOfItsParsersCanParseTheInput()
 {
   // Arrange
-  auto parser = choice({
-      charP('a'),
-      charP('o'),
-      charP('o'),
-  });
+  auto parser = choice(charP('a'), charP('o'), charP('o'));
 
   // Act
   auto result = parser.run("2022");
 
   // Assert
   assert(result.isFailure());
-
-  try
-    {
-      (void)result.value();
-    }
-  catch (ParserError& err)
-    {
-      assert(err.msg().find("choice") != std::string::npos);
-    }
 }
 
 void
 testAnyOfCanParseWhenGivenValidAlternatives()
 {
   // Arrange
-  auto parser = anyOf({ 'a', 'o', 'o' });
+  auto parser = anyOf('a', 'o', 'o');
 
   // Act
   auto result = parser.run("aoc");
@@ -236,7 +219,7 @@ testManySucceedsEvenWhenItCantParseAnything()
 void
 testParsingWhitespace()
 {
-  auto parser = many(anyOf({ ' ', '\n', '\t' }));
+  auto parser = many(anyOf(' ', '\n', '\t'));
 
   auto result1 = parser.run("ABC");
   auto result2 = parser.run(" ABC");
@@ -271,7 +254,7 @@ testIgnoringTheRightResultWorks()
 void
 test_sepBy1_works_with_valid_input()
 {
-  auto parser = sepBy1(choice({ charP('a'), charP('o'), charP('c') }), charP(' '));
+  auto parser = sepBy1(choice(charP('a'), charP('o'), charP('c')), charP(' '));
   auto result = parser.run("a o c");
   assert(result.isSuccess());
   assert(result.value().first == std::list({ 'a', 'o', 'c' }));
@@ -281,7 +264,7 @@ test_sepBy1_works_with_valid_input()
 void
 test_sepBy1_fails_with_invalid_input()
 {
-  auto parser = sepBy1(choice({ charP('a'), charP('o'), charP('c') }), charP(' '));
+  auto parser = sepBy1(choice(charP('a'), charP('o'), charP('c')), charP(' '));
   auto result = parser.run("AOC");
   assert(result.isFailure());
 }
@@ -289,7 +272,7 @@ test_sepBy1_fails_with_invalid_input()
 void
 test_sepBy_works_with_valid_input()
 {
-  auto parser = sepBy(choice({ charP('a'), charP('o'), charP('c') }), charP(' '));
+  auto parser = sepBy(choice(charP('a'), charP('o'), charP('c')), charP(' '));
   auto result = parser.run("a o c");
   assert(result.isSuccess());
   assert(result.value().first == std::list({ 'a', 'o', 'c' }));
@@ -299,7 +282,7 @@ test_sepBy_works_with_valid_input()
 void
 test_sepBy_works_with_invalid_input()
 {
-  auto parser = sepBy(choice({ charP('a'), charP('o'), charP('c') }), charP(' '));
+  auto parser = sepBy(choice(charP('a'), charP('o'), charP('c')), charP(' '));
   auto result = parser.run("AOC");
   assert(result.isSuccess());
   assert(result.value().first == std::list<char>());
