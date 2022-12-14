@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <string>
 #include <utility>
 
 namespace parsec
@@ -13,7 +15,7 @@ namespace parsec
  * given the right arguments.
  */
 template <typename Class>
-class construct
+class make
 {
 public:
   template <typename... Args>
@@ -55,6 +57,29 @@ curry3(F f)
       };
     };
   };
+}
+
+template <size_t N = 1, typename F>
+constexpr auto
+curry(F f)
+{
+  if constexpr (N == 1) return curry1(f);
+  if constexpr (N == 2) return curry2(f);
+  if constexpr (N == 3) return curry3(f);
+  throw "Can't curry";
+}
+
+namespace convert
+{
+
+auto
+tostring() noexcept
+{
+  return [](auto it) {
+    return std::string{ it.begin(), it.end() };
+  };
+}
+
 }
 
 }

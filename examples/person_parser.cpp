@@ -1,8 +1,8 @@
 #include <iostream>
 
 #include "parsec/adapter.hpp"
-#include "parsec/numeric.hpp"
 #include "parsec/parsec.hpp"
+#include "parsec/parsers.hpp"
 
 using namespace parsec;
 
@@ -11,15 +11,11 @@ struct Person
   std::string name;
   int age;
 
-  Person(const std::string& n, const std::string& a)
-  {
-    name = n;
-    age = std::stoi(a);
-  }
+  Person(const std::string& n, int a) : name{ n }, age{ a } {}
 };
 
 [[nodiscard]] Person
-mkPerson(const std::string& name, const std::string& age) noexcept
+mkPerson(const std::string& name, int age) noexcept
 {
   return { name, age };
 }
@@ -27,9 +23,10 @@ mkPerson(const std::string& name, const std::string& age) noexcept
 auto
 main() -> int
 {
-  auto parser = curry2(construct<Person>{}) % (stringP("Alexander") < charP(' ')) * digitsP();
+  auto wordP = many1(letterP()) & convert::tostring();
+  auto parser = curry<2>(make<Person>{}) % (wordP < charP(' ')) * decimalP();
   // Or
-  // auto parser = curry2(mkPerson) % (stringP("Alexander") < charP(' ')) * digitsP();
+  // auto parser = curry<2>(mkPerson) % (stringP("Alexander") < charP(' ')) * digitsP();
   auto person = parser.runThrowing("Alexander 23");
   std::cout << person.name << " " << person.age << "\n";
   return 0;
