@@ -7,6 +7,7 @@
 #include <cassert>
 #include <functional>
 #include <iostream>
+#include <list>
 #include <optional>
 #include <string>
 #include <utility>
@@ -64,8 +65,13 @@ public:
   [[nodiscard]] std::optional<ParserError>
   error() const
   {
-    if (isSuccess()) return std::nullopt;
-    return std::get<ParserError>(value_);
+    return isSuccess() ? std::nullopt : std::optional{ std::get<ParserError>(value_) };
+  }
+
+  [[nodiscard]] std::optional<T>
+  asOpt() const noexcept
+  {
+    return isSuccess() ? std::optional{ std::get<T>(value_) } : std::nullopt;
   }
 
   static ParseResult
@@ -112,6 +118,16 @@ private:
   function_type parse_fn;
 };
 
+/**
+ * Get a parser result as an optional value.
+ */
+template <typename T>
+[[nodiscard]] constexpr std::optional<T>
+maybeResult(typename Parser<T>::result_type result)
+{
+  return result.isSuccess() ? std::optional{ result.value().first } : std::nullopt;
+}
+
 template <typename T>
 typename Parser<T>::result_type
 make_success(const T& value, const std::string& input) noexcept
@@ -144,30 +160,45 @@ pure(T value)
 /**
  * Function application in the Parser context.
  */
-template <typename T, typename R>
+template <typename F, typename T>
 [[nodiscard]] constexpr auto
-ap(const Parser<T>& p1, const Parser<R>& p2) noexcept
+ap(const Parser<F>& fP, const Parser<T>& p) noexcept
 {
-  using return_type = typename std::result_of<T(R)>::type;
+  return fP >>= [p](F f) {
+    return p >>= [f](T x) {
+      return pure(f(x));
+    };
+  };
+}
 
-  return Parser<return_type>([p1, p2](const std::string& input) {
-    auto result1 = p1.run(input);
-    if (result1.isFailure())
-      return Parser<return_type>::result_type::failure(result1.error().value());
+template <typename F, typename T>
+[[nodiscard]] constexpr auto
+operator*(const Parser<F>& fP, const Parser<T>& p)
+{
+  return ap(fP, p);
+}
 
-    auto [fn, remaining] = result1.value();
-
-    auto result2 = p2.run(remaining);
-    if (result2.isFailure())
-      return Parser<return_type>::result_type::failure(result2.error().value());
-
-    auto [value, remaining2] = result2.value();
-
-    return Parser<return_type>::result_type::success({
-        fn(value),
-        remaining2,
-    });
+/**
+ * Monadic bind for parsers.
+ */
+template <typename F, typename T>
+[[nodiscard]] constexpr auto
+bind(const Parser<T>& p, F f) noexcept
+{
+  using result_parser = typename std::result_of<F(T)>::type;
+  return result_parser([f, p](const std::string& input) -> result_parser::result_type {
+    auto result = p.run(input);
+    if (result.isFailure()) return result.error().value();
+    auto [value, remainingInput] = result.value();
+    return f(value).run(remainingInput);
   });
+}
+
+template <typename F, typename T>
+[[nodiscard]] constexpr auto
+operator>>=(const Parser<T>& p, F f) noexcept
+{
+  return bind(p, f);
 }
 
 /**
@@ -178,37 +209,58 @@ template <typename F, typename T>
 [[nodiscard]] constexpr auto
 map(F f, const Parser<T>& p) noexcept
 {
-  using return_type = typename std::result_of<F(T)>::type;
+  return p >>= [f](T value) {
+    return pure(f(value));
+  };
+}
 
-  return Parser<return_type>([f, p](const std::string& input) {
-    auto result = p.run(input);
-    if (result.isFailure())
-      return Parser<return_type>::result_type::failure(result.error().value());
-    auto [value, remaining] = result.value();
-    return Parser<return_type>::result_type::success({ f(value), remaining });
-  });
+template <typename F, typename T>
+[[nodiscard]] constexpr auto
+operator%(F f, const Parser<T>& p) noexcept
+{
+  return map(f, p);
+}
+
+/**
+ * Reverse functorial application.
+ */
+template <typename F, typename T>
+[[nodiscard]] constexpr auto
+operator&(const Parser<T>& p, F f) noexcept
+{
+  return map(f, p);
 }
 
 template <typename T>
 [[nodiscard]] constexpr auto
 sequence(const std::vector<Parser<T> >& parsers) noexcept
 {
-  return Parser<std::vector<T> >([parsers](const std::string& input) {
-    std::vector<T> results{};
-    std::string remaining = input;
+  return Parser<std::vector<T> >(
+      [parsers](const std::string& input) -> Parser<std::vector<T> >::result_type {
+        std::vector<T> results{};
+        std::string remaining = input;
 
-    for (const auto& parser : parsers)
-      {
-        auto result = parser.run(remaining);
+        for (const auto& parser : parsers)
+          {
+            auto result = parser.run(remaining);
+            if (result.isFailure()) return result.error().value();
+            results.push_back(result.value().first);
+            remaining = result.value().second;
+          }
 
-        if (result.isFailure())
-          return Parser<std::vector<T> >::result_type::failure(result.error().value());
+        return make_success(results, remaining);
+      });
+}
 
-        results.push_back(result.value().first);
-        remaining = result.value().second;
-      }
-
-    return Parser<std::vector<T> >::result_type::success({ results, remaining });
+/**
+ * Parses any character that satisfies the given predicate.
+ */
+template <typename P>
+[[nodiscard]] Parser<char>
+satisfy(P pred, const std::string& errmsg = "satisfy: Failed to satisfy predicate") noexcept
+{
+  return Parser<char>([pred, errmsg](const std::string& input) -> Parser<char>::result_type {
+    return pred(input[0]) ? make_success(input[0], input.substr(1)) : ParserError{ errmsg };
   });
 }
 
@@ -216,12 +268,10 @@ sequence(const std::vector<Parser<T> >& parsers) noexcept
  * Parse a single character.
  */
 Parser<char>
-charP(char c)
+charP(char charToMatch)
 {
-  return Parser<char>([c](const std::string& input) {
-    if (input[0] == c) return Parser<char>::result_type::success({ input[0], input.substr(1) });
-    auto errmsg = std::string{ "Failed to match character: " } + c;
-    return Parser<char>::result_type::failure(ParserError{ errmsg });
+  return satisfy([charToMatch](char c) {
+    return charToMatch == c;
   });
 }
 
@@ -239,35 +289,19 @@ stringP(const std::string& s)
 }
 
 /**
- * Parses any character that satisfies the given predicate.
- */
-template <typename P>
-[[nodiscard]] Parser<char>
-satisfy(P pred) noexcept
-{
-  return Parser<char>([pred](const std::string& input) -> Parser<char>::result_type {
-    if (pred(input[0])) return make_success(input[0], input.substr(1));
-    return ParserError{ "Failed to satisfy predicate" };
-  });
-}
-
-/**
  * Parse any single one of the specified characters.
  */
 [[nodiscard]] Parser<char>
 anyOf(const std::initializer_list<char>& chars)
 {
-  return Parser<char>([chars](const std::string& input) {
+  return Parser<char>([chars](const std::string& input) -> Parser<char>::result_type {
     for (auto c : chars)
       {
-        auto parser = charP(c);
-        auto result = parser.run(input);
+        auto result = charP(c).run(input);
         if (result.isSuccess()) return result;
       }
     // TODO: Provide better error message;
-    return Parser<char>::result_type::failure(ParserError{
-        "Failed to match any characters",
-    });
+    return ParserError{ "Failed to match any characters" };
   });
 }
 
@@ -292,49 +326,45 @@ choice(const std::initializer_list<Parser<T> >& parsers)
 }
 
 template <typename T>
-[[nodiscard]] constexpr Parser<std::vector<T> >
+[[nodiscard]] constexpr auto
 many(const Parser<T>& parser) noexcept
 {
-  return Parser<std::vector<T> >(
-      [parser](const std::string& input) -> Parser<std::vector<T> >::result_type {
+  return Parser<std::list<T> >(
+      [parser](const std::string& input) -> Parser<std::list<T> >::result_type {
         std::string remaining = input;
-        std::vector<T> vs{};
+        std::list<T> xs{};
 
         while (1)
           {
             auto result = parser.run(remaining);
-            if (result.isFailure()) return make_success(std::move(vs), remaining);
-            vs.push_back(result.value().first);
+            if (result.isFailure()) return make_success(std::move(xs), remaining);
+            xs.push_back(result.value().first);
             remaining = result.value().second;
           }
       });
 }
 
 template <typename T>
-[[nodiscard]] constexpr Parser<std::vector<T> >
+[[nodiscard]] constexpr Parser<std::list<T> >
 many1(const Parser<T>& parser) noexcept
 {
-  return Parser<std::vector<T> >(
-      [parser](const std::string& input) -> Parser<std::vector<T> >::result_type {
-        // TODO: We could use bind here.
-        auto result = parser.run(input);
-        if (result.isFailure()) return ParserError{ "many1: Failed to match" };
-        std::vector<T> vs{ result.value().first };
-        auto [results, remaining] = many(parser).run(input).value();
-        std::move(results.begin(), results.end(), vs.begin() + 1);
-        return make_success(std::move(vs), remaining);
-      });
+  return parser >>= [parser](auto x) {
+    return many(parser) & [x](std::list<T> xs) {
+      xs.push_front(x);
+      return xs;
+    };
+  };
 }
 
+/**
+ * Run the provided parser and return the provided default
+ * value if it fails.
+ */
 template <typename T>
 [[nodiscard]] constexpr Parser<T>
 option(const T& def, Parser<T> parser)
 {
-  return Parser<T>([def, parser](const std::string& input) {
-    auto result = parser.run(input);
-    if (result.isFailure()) return make_success(def, input);
-    return result;
-  });
+  return parser | pure(def);
 }
 
 /**
@@ -346,25 +376,73 @@ digitP()
   return anyOf({ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' });
 }
 
-Parser<std::vector<char> >
+Parser<std::list<char> >
 digitsP()
 {
   return many1(digitP());
 }
 
 /**
- * Run the second parser, ignoring the result of the first one.
+ * Applies one or more ocurrences of p, separated by sep.
+ * @return A list of the values returned by p.
+ */
+template <typename T, typename Sep>
+[[nodiscard]] constexpr Parser<std::list<T> >
+sepBy1(const Parser<T>& p, const Parser<Sep>& sep) noexcept
+{
+  return p >>= [p, sep](T x) {
+    return many(sep >> p) & [x](std::list<T> xs) {
+      xs.push_front(x);
+      return xs;
+    };
+  };
+}
+
+/**
+ * Applies zero or more ocurrences of p, separated by sep.
+ * @return A list of the values returned by p.
+ */
+template <typename T, typename Sep>
+[[nodiscard]] constexpr Parser<std::list<T> >
+sepBy(const Parser<T>& p, const Parser<Sep>& sep) noexcept
+{
+  return sepBy1(p, sep) | pure(std::list<T>{});
+}
+
+/**
+ * Run the second parser, ignoring the result of the first one
+ * and returning the result of the second one.
  */
 template <typename T, typename R>
 [[nodiscard]] constexpr Parser<R>
 operator>>(const Parser<T>& p1, const Parser<R>& p2)
 {
-  return Parser<R>([p1, p2](const std::string& input) {
-    auto result = p1.run(input);
-    if (result.isFailure()) return Parser<R>::result_type::failure(result.error().value());
-    auto [_, remaining_input] = result.value();
-    return p2.run(remaining_input);
-  });
+  return p1 >>= [p2]([[maybe_unused]] T) {
+    return p2;
+  };
+}
+
+/**
+ * Run the first parser and then the second, ignoring the
+ * result of the second one and returning that of the first
+ * one.
+ */
+template <typename T, typename R>
+[[nodiscard]] constexpr Parser<T>
+operator<(const Parser<T>& p1, const Parser<R>& p2)
+{
+  return p1 >>= [p2](T value) -> Parser<T> {
+    return p2 & [value]([[maybe_unused]] R) {
+      return value;
+    };
+  };
+}
+
+template <typename T, typename R>
+[[nodiscard]] constexpr Parser<R>
+operator>(const Parser<T>& p1, const Parser<R>& p2)
+{
+  return p1 >> p2;
 }
 
 /**
@@ -379,20 +457,6 @@ operator|(const Parser<T>& p1, const Parser<T>& p2)
     if (result.isSuccess()) return result;
     return p2.run(input);
   });
-}
-
-template <typename F, typename T>
-[[nodiscard]] constexpr auto
-operator*(const Parser<F>& p1, const Parser<T>& p2)
-{
-  return ap(p1, p2);
-}
-
-template <typename F, typename T>
-[[nodiscard]] constexpr auto
-operator%(F f, const Parser<T>& p) noexcept
-{
-  return map(f, p);
 }
 
 }

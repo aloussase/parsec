@@ -217,7 +217,7 @@ testManyParsesValidNonEmptyInput()
   auto result = parser.run("AAA");
 
   assert(result.isSuccess());
-  assert(result.value().first == std::vector({ 'A', 'A', 'A' }));
+  assert(result.value().first == std::list({ 'A', 'A', 'A' }));
   assert(result.value().second == "");
 }
 
@@ -229,7 +229,7 @@ testManySucceedsEvenWhenItCantParseAnything()
   auto result = parser.run("Advent of Code");
 
   assert(result.isSuccess());
-  assert(result.value().first == std::vector<char>());
+  assert(result.value().first == std::list<char>());
   assert(result.value().second == "Advent of Code");
 }
 
@@ -244,9 +244,9 @@ testParsingWhitespace()
 
   assert(result1.isSuccess() && result2.isSuccess() && result3.isSuccess());
   assert(result1.value().second == "ABC");
-  assert(result2.value().first == std::vector({ ' ' }));
+  assert(result2.value().first == std::list({ ' ' }));
   assert(result2.value().second == "ABC");
-  assert(result3.value().first == std::vector({ '\t' }));
+  assert(result3.value().first == std::list({ '\t' }));
   assert(result3.value().second == "ABC");
 }
 
@@ -258,9 +258,59 @@ testMany1FailsWhenItCanMatchAtLeastOnce()
   assert(result.isFailure());
 }
 
+void
+testIgnoringTheRightResultWorks()
+{
+  auto parser = charP('a') < charP('o');
+  auto result = parser.run("aoc");
+  assert(result.isSuccess());
+  assert(result.value().first == 'a');
+  assert(result.value().second == "c");
+}
+
+void
+test_sepBy1_works_with_valid_input()
+{
+  auto parser = sepBy1(choice({ charP('a'), charP('o'), charP('c') }), charP(' '));
+  auto result = parser.run("a o c");
+  assert(result.isSuccess());
+  assert(result.value().first == std::list({ 'a', 'o', 'c' }));
+  assert(result.value().second == "");
+}
+
+void
+test_sepBy1_fails_with_invalid_input()
+{
+  auto parser = sepBy1(choice({ charP('a'), charP('o'), charP('c') }), charP(' '));
+  auto result = parser.run("AOC");
+  assert(result.isFailure());
+}
+
+void
+test_sepBy_works_with_valid_input()
+{
+  auto parser = sepBy(choice({ charP('a'), charP('o'), charP('c') }), charP(' '));
+  auto result = parser.run("a o c");
+  assert(result.isSuccess());
+  assert(result.value().first == std::list({ 'a', 'o', 'c' }));
+  assert(result.value().second == "");
+}
+
+void
+test_sepBy_works_with_invalid_input()
+{
+  auto parser = sepBy(choice({ charP('a'), charP('o'), charP('c') }), charP(' '));
+  auto result = parser.run("AOC");
+  assert(result.isSuccess());
+  assert(result.value().first == std::list<char>());
+  assert(result.value().second == "AOC");
+}
+
 auto
 main() -> int
 {
+  // TODO: Change all these to use snake_case.
+
   testCharPCanParseASingleCharacter();
   testCharPFailsToParseANonMatchingString();
   testSequenceCanParsePartOfItsInput();
@@ -275,6 +325,16 @@ main() -> int
   testStringPWorksWhenGivenValidInput();
   testManyParsesValidNonEmptyInput();
   testManySucceedsEvenWhenItCantParseAnything();
+  testMany1FailsWhenItCanMatchAtLeastOnce();
   testParsingWhitespace();
+  testIgnoringTheRightResultWorks();
+
+  // sepBy1
+  test_sepBy1_works_with_valid_input();
+  test_sepBy1_fails_with_invalid_input();
+
+  // sepBy
+  test_sepBy_works_with_valid_input();
+  test_sepBy_works_with_invalid_input();
   return 0;
 }
