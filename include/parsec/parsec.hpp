@@ -62,10 +62,10 @@ public:
     return std::get<T>(value_);
   }
 
-  [[nodiscard]] std::optional<ParserError>
-  error() const
+  [[nodiscard]] ParserError
+  asError() const
   {
-    return isSuccess() ? std::nullopt : std::optional{ std::get<ParserError>(value_) };
+    return std::get<ParserError>(value_);
   }
 
   [[nodiscard]] std::optional<T>
@@ -109,6 +109,19 @@ public:
   run(const std::string& input) const noexcept
   {
     return parse_fn(input);
+  }
+
+  [[nodiscard]] constexpr std::optional<T>
+  runAsOpt(const std::string& input) const noexcept
+  {
+    if (auto result = run(input).asOpt(); result) return result->first;
+    return std::nullopt;
+  }
+
+  [[nodiscard]] constexpr T
+  runThrowing(const std::string& input) const
+  {
+    return run(input).value().first;
   }
 
 private:
@@ -178,7 +191,7 @@ bind(const Parser<T>& p, F f) noexcept
   using result_parser = typename std::result_of<F(T)>::type;
   return result_parser([f, p](const std::string& input) -> result_parser::result_type {
     auto result = p.run(input);
-    if (result.isFailure()) return result.error().value();
+    if (result.isFailure()) return result.asError();
     auto [value, remainingInput] = result.value();
     return f(value).run(remainingInput);
   });
@@ -233,7 +246,7 @@ sequence(const std::vector<Parser<T> >& parsers) noexcept
         for (const auto& parser : parsers)
           {
             auto result = parser.run(remaining);
-            if (result.isFailure()) return result.error().value();
+            if (result.isFailure()) return result.asError();
             results.push_back(result.value().first);
             remaining = result.value().second;
           }

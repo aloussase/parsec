@@ -8,12 +8,28 @@ namespace parsec
 // FIXME: There must be a way to create a curry<N> template to
 // curry arbitrary functions.
 
+/**
+ * C++ functor that can construct instances of any class
+ * given the right arguments.
+ */
+template <typename Class>
+class construct
+{
+public:
+  template <typename... Args>
+  constexpr auto
+  operator()(Args&&... args) const
+  {
+    return Class{ std::forward<Args>(args)... };
+  }
+};
+
 template <typename F>
 auto
 curry1(F f)
 {
   return [f](auto x) {
-    return f(std::move(x));
+    return f(x);
   };
 }
 
@@ -23,7 +39,7 @@ curry2(F f)
 {
   return [f](auto x) {
     return [f, x](auto y) {
-      return f(std::move(x), std::move(y));
+      return f(x, y);
     };
   };
 }
@@ -35,7 +51,7 @@ curry3(F f)
   return [f](auto x) {
     return [f, x](auto y) {
       return [f, x, y](auto z) {
-        return f(std::move(x), std::move(y), std::move(z));
+        return f(x, y, z);
       };
     };
   };

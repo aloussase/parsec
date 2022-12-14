@@ -15,4 +15,4 @@ target_compile_options(parsec INTERFACE -Wall -Wextra)
 target_compile_features(parsec INTERFACE cxx_std_20)
 
 add_subdirectory(test)
-
+add_subdirectory(examples)

@@ -2,7 +2,7 @@
 // Created by aloussase on 12/12/22.
 //
 
-#include "parsec/curry.hpp"
+#include "parsec/adapter.hpp"
 #include "parsec/parsec.hpp"
 
 #include <cassert>

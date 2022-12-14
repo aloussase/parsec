@@ -11,13 +11,19 @@ namespace parsec
 Parser<char>
 digitP()
 {
-  return anyOf({ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' });
+  return satisfy(
+      [](char c) {
+        return c >= '0' && c <= '9';
+      },
+      "Failed to parse digit");
 }
 
-Parser<std::list<char> >
+Parser<std::string>
 digitsP()
 {
-  return many1(digitP());
+  return many1(digitP()) & [](auto digits) {
+    return std::string(digits.begin(), digits.end());
+  };
 }
 
 }
