@@ -48,11 +48,13 @@ so you can read that too.
 
 The following is a list of the operators provided by the library:
 
+| Operator | Description |
+| --------- | ---------- |
 | `%`   | Functorial application (fmap)                                 |
 | `&`   | % with its arguments swapped                                  |
 | `*`   | Applicative application (<*>)                                 |
 | `>>=` | Monadic bind                                                  |
-| `|`   | Alternative operation                                         |
+| `\|`   | Alternative operation                                         |
 | `>>`  | Bind, discarding the result of the first computation          |
 | `>`   | Same as `>>`                                                  |
 | `<`   | Run two computations and return the result of the first one   |
