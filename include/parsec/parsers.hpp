@@ -13,11 +13,7 @@ namespace parsec
 Parser<char>
 anyChar()
 {
-  return satisfy(
-      []([[maybe_unused]] char c) {
-        return true;
-      },
-      "Failed to match any char");
+  return satisfy([]([[maybe_unused]] char c) { return true; }, "any character");
 }
 
 /**
@@ -26,11 +22,10 @@ anyChar()
 Parser<char>
 notChar(char charToNotMatch)
 {
-  return satisfy(
-      [charToNotMatch](char c) {
-        return c != charToNotMatch;
-      },
-      "notAnyCharP: Failed to parse");
+  // clang-format off
+  return satisfy([charToNotMatch](char c) { return c != charToNotMatch; },
+                 "not char '"s + charToNotMatch + "'");
+  // clang-format on
 }
 
 /**
@@ -39,7 +34,7 @@ notChar(char charToNotMatch)
 Parser<char>
 digit()
 {
-  return satisfy(isdigit, "Failed to parse digit");
+  return satisfy(isdigit, "digit");
 }
 
 /**
@@ -70,7 +65,7 @@ decimal()
 auto
 letter()
 {
-  return satisfy(isalpha, "Failed to match letter");
+  return satisfy(isalpha, "letter");
 }
 
 /**
@@ -79,7 +74,7 @@ letter()
 auto
 space()
 {
-  return satisfy(isspace, "Failed to match space");
+  return satisfy(isspace, "space");
 }
 
 }

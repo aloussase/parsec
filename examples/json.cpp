@@ -162,7 +162,7 @@ main() -> int
     }
   catch (const ParserError& err)
     {
-      std::cerr << err.msg() << "\n";
+      std::cerr << err.show() << "\n";
     }
 
   return 0;

@@ -4,14 +4,18 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cassert>
 #include <functional>
 #include <iostream>
 #include <list>
+#include <numeric>
 #include <optional>
 #include <string>
 #include <utility>
 #include <variant>
+
+using namespace std::literals;
 
 namespace parsec
 {
@@ -19,15 +23,25 @@ namespace parsec
 class ParserError
 {
 public:
-  ParserError(std::string errmsg) : errmsg_{ std::move(errmsg) } {}
+  [[nodiscard]] static ParserError
+  create(const std::string& parser_label, const std::string& errmsg) noexcept
+  {
+    return ParserError{ parser_label, errmsg };
+  }
 
   [[nodiscard]] std::string
-  msg() const noexcept
+  show() const noexcept
   {
-    return errmsg_;
+    return parser_label_ + ": " + errmsg_;
   }
 
 private:
+  ParserError(std::string parser_label, std::string errmsg)
+      : parser_label_{ std::move(parser_label) }, errmsg_{ std::move(errmsg) }
+  {
+  }
+
+  std::string parser_label_;
   std::string errmsg_;
 };
 
@@ -41,6 +55,7 @@ public:
     Failure,
   };
 
+  // Implicit conversion from ParserError
   ParseResult(ParserError err) : ParseResult{ Failure, std::move(err) } {}
 
   [[nodiscard]] constexpr bool
@@ -101,9 +116,28 @@ public:
   using result_type = ParseResult<std::pair<T, std::string> >;
   using function_type = std::function<result_type(const std::string&)>;
 
-  constexpr explicit Parser(const function_type& f) : parse_fn(f) {}
+  constexpr
+  Parser(const function_type& f)
+      : label_{ "unknown" }, parse_fn{ f }
+  {
+  }
+
+  Parser(const std::string& label, const function_type& f) : label_{ label }, parse_fn(f) {}
 
   constexpr ~Parser() = default;
+
+  [[nodiscard]] std::string
+  getLabel() const noexcept
+  {
+    return label_;
+  }
+
+  Parser&
+  withLabel(const std::string& label) noexcept
+  {
+    label_ = label;
+    return *this;
+  }
 
   [[nodiscard]] constexpr result_type
   run(const std::string& input) const noexcept
@@ -125,6 +159,7 @@ public:
   }
 
 private:
+  std::string label_;
   function_type parse_fn;
 };
 
@@ -152,9 +187,7 @@ template <typename T>
 [[nodiscard]] constexpr auto
 pure(const T& value)
 {
-  return Parser<T>([value](const std::string& input) {
-    return make_success(value, input);
-  });
+  return Parser<T>([value](const std::string& input) { return make_success(value, input); });
 }
 
 /**
@@ -257,12 +290,14 @@ sequence(const std::vector<Parser<T> >& parsers) noexcept
  */
 template <typename P>
 [[nodiscard]] auto
-satisfy(P predicate, const std::string& errmsg) noexcept
+satisfy(P predicate, const std::string& label) noexcept
 {
-  return Parser<char>([predicate, errmsg](const std::string& input) -> Parser<char>::result_type {
-    if (input.empty()) return ParserError{ "Empty input!" };
+  return Parser<char>([predicate, label](const std::string& input) -> Parser<char>::result_type {
+    if (input.empty()) return ParserError::create(label, "Empty input!");
     if (predicate(input[0])) return make_success(input[0], input.substr(1));
-    return ParserError{ errmsg + ": on character " + input[0] };
+    // clang-format off
+    return ParserError::create(label, "Unexpected '"s + input[0] + "'");
+    // clang-format on
   });
 }
 
@@ -272,11 +307,9 @@ satisfy(P predicate, const std::string& errmsg) noexcept
 [[nodiscard]] static Parser<char>
 charP(char charToMatch) noexcept
 {
-  return satisfy(
-      [charToMatch](char c) {
-        return charToMatch == c;
-      },
-      std::string{ "charP: Failed to parse character: " } + charToMatch);
+  // clang-format off
+  return satisfy([charToMatch](char c) { return charToMatch == c; }, "character '"s + charToMatch + "'");
+  // clang-format on
 }
 
 /**
@@ -285,10 +318,13 @@ charP(char charToMatch) noexcept
 [[nodiscard]] Parser<std::string>
 stringP(const std::string& s)
 {
-  return Parser<std::string>([s](const std::string& input) -> Parser<std::string>::result_type {
-    if (auto pos = input.find(s); pos == 0) return make_success(s, input.substr(pos + s.length()));
-    return ParserError{ "Failed to parse string" };
-  });
+  auto label = "string \"" + s + "\"";
+  return Parser<std::string>(
+      label, [s, label](const std::string& input) -> Parser<std::string>::result_type {
+        if (auto pos = input.find(s); pos == 0)
+          return make_success(s, input.substr(pos + s.length()));
+        return ParserError::create(label, "Failed to parse string");
+      });
 }
 
 /**
@@ -308,24 +344,30 @@ template <typename... Chars>
 [[nodiscard]] constexpr auto
 anyOf(Chars&&... chars)
 {
-  return choice(charP(std::forward<Chars>(chars))...);
+  // clang-format off
+  return choice(charP(std::forward<Chars>(chars))...).withLabel(("any of: "s + ... + chars));
+  // clang-format on
 }
 
 template <typename T>
 [[nodiscard]] constexpr auto
 many(const Parser<T>& parser) noexcept
 {
-  return Parser<std::list<T> >([parser](const std::string& input) {
-    std::string remaining = input;
-    std::list<T> xs{};
-    while (1)
-      {
-        auto result = parser.run(remaining);
-        if (result.isFailure()) return make_success(std::move(xs), std::move(remaining));
-        xs.push_back(std::move(result.value().first));
-        remaining = std::move(result.value().second);
-      }
-  });
+  return Parser<std::list<T> >(
+      // clang-format off
+      "many of "s + parser.getLabel(),
+      // clang-format on
+      [parser](const std::string& input) {
+        std::string remaining = input;
+        std::list<T> xs{};
+        while (1)
+          {
+            auto result = parser.run(remaining);
+            if (result.isFailure()) return make_success(std::move(xs), std::move(remaining));
+            xs.push_back(std::move(result.value().first));
+            remaining = std::move(result.value().second);
+          }
+      });
 }
 
 template <typename T>
@@ -348,7 +390,9 @@ template <typename T>
 [[nodiscard]] constexpr Parser<T>
 option(const T& def, Parser<T> parser)
 {
-  return parser | pure(def);
+  // clang-format off
+  return (parser | pure(def)).withLabel("Optional "s + parser.getLabel());
+  // clang-format on
 }
 
 /**
@@ -359,12 +403,14 @@ template <typename T, typename Sep>
 [[nodiscard]] constexpr Parser<std::list<T> >
 sepBy1(const Parser<T>& p, const Parser<Sep>& sep) noexcept
 {
-  return p >>= [p, sep](T x) {
-    return many(sep >> p) & [x](std::list<T> xs) {
-      xs.push_front(x);
-      return xs;
-    };
-  };
+  return (p >>=
+          [p, sep](T x) {
+            return many(sep >> p) & [x](std::list<T> xs) {
+              xs.push_front(x);
+              return xs;
+            };
+          })
+      .withLabel(p.getLabel() + " separated by " + sep.getLabel());
 }
 
 /**
@@ -386,9 +432,8 @@ template <typename T, typename R>
 [[nodiscard]] constexpr Parser<R>
 operator>>(const Parser<T>& p1, const Parser<R>& p2)
 {
-  return p1 >>= [p2]([[maybe_unused]] T) {
-    return p2;
-  };
+  return (p1 >>= [p2]([[maybe_unused]] T) { return p2; })
+      .withLabel(p1.getLabel() + " and then " + p2.getLabel());
 }
 
 /**
@@ -421,7 +466,8 @@ template <typename T>
 [[nodiscard]] constexpr Parser<T>
 operator|(const Parser<T>& p1, const Parser<T>& p2)
 {
-  return Parser<T>([p1, p2](const std::string& input) {
+  auto label = p1.getLabel() + " or " + p2.getLabel();
+  return Parser<T>(label, [p1, p2](const std::string& input) {
     auto result = p1.run(input);
     return result.isSuccess() ? result : p2.run(input);
   });

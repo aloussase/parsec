@@ -28,14 +28,12 @@ auto
 main() -> int
 {
   // Make a word parser from provided primitives.
-  auto wordP = many1(letterP()) & convert::tostring();
+  auto wordP = many1(letter()) & convert::tostring();
   // Create the person parser.
-  auto parser = curry<2>(make<Person>{}) % (wordP < charP(' ')) * decimalP();
+  auto parser = curry<2>(make<Person>{}) % (wordP < charP(' ')) * decimal();
   // Parse a person, throwing an exception if it fails.
   auto person = parser.runThrowing("Alexander 23");
-
   std::cout << person.name << " " << person.age << "\n";
-
   return 0;
 }
 ```
@@ -62,7 +60,7 @@ The following is a list of the operators provided by the library:
 
 ## TODO
 
-- [ ] Labels for parsers
+- [x] Labels for parsers
 - [ ] Track position in input
 - [ ] Benchmarks
 

@@ -5,4 +5,4 @@ PointerAlignment: Left
 ColumnLimit: 100
 AllowShortCaseLabelsOnASingleLine: true
 AllowShortIfStatementsOnASingleLine: true
-AllowShortLambdasOnASingleLine: None
+AllowShortLambdasOnASingleLine: Inline
