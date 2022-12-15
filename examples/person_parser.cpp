@@ -23,8 +23,8 @@ mkPerson(const std::string& name, int age) noexcept
 auto
 main() -> int
 {
-  auto wordP = many1(letterP()) & convert::tostring();
-  auto parser = curry<2>(make<Person>{}) % (wordP < charP(' ')) * decimalP();
+  auto wordP = many1(letter()) & convert::tostring();
+  auto parser = curry<2>(make<Person>{}) % (wordP < charP(' ')) * decimal();
   // Or
   // auto parser = curry<2>(mkPerson) % (stringP("Alexander") < charP(' ')) * digitsP();
   auto person = parser.runThrowing("Alexander 23");

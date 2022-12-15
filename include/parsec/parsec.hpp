@@ -140,7 +140,7 @@ maybeResult(typename Parser<T>::result_type result)
 
 template <typename T>
 constexpr auto
-make_success(T value, const std::string& input) noexcept
+make_success(const T& value, const std::string& input) noexcept
 {
   return Parser<T>::result_type::success(std::pair{ value, input });
 }
@@ -149,14 +149,11 @@ make_success(T value, const std::string& input) noexcept
  * Put a value in a Parser context.
  */
 template <typename T>
-[[nodiscard]] constexpr Parser<T>
-pure(T value)
+[[nodiscard]] constexpr auto
+pure(const T& value)
 {
   return Parser<T>([value](const std::string& input) {
-    return Parser<T>::result_type::success({
-        value,
-        input,
-    });
+    return make_success(value, input);
   });
 }
 
@@ -265,7 +262,7 @@ satisfy(P predicate, const std::string& errmsg) noexcept
   return Parser<char>([predicate, errmsg](const std::string& input) -> Parser<char>::result_type {
     if (input.empty()) return ParserError{ "Empty input!" };
     if (predicate(input[0])) return make_success(input[0], input.substr(1));
-    return ParserError{ errmsg };
+    return ParserError{ errmsg + ": on character " + input[0] };
   });
 }
 
@@ -285,12 +282,11 @@ charP(char charToMatch) noexcept
 /**
  * Parse a string.
  */
-[[nodiscard]] static Parser<std::string>
+[[nodiscard]] Parser<std::string>
 stringP(const std::string& s)
 {
   return Parser<std::string>([s](const std::string& input) -> Parser<std::string>::result_type {
-    if (auto pos = input.find(s); pos != std::string::npos)
-      return make_success(s, input.substr(pos + s.length()));
+    if (auto pos = input.find(s); pos == 0) return make_success(s, input.substr(pos + s.length()));
     return ParserError{ "Failed to parse string" };
   });
 }
