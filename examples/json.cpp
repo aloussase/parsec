@@ -136,8 +136,7 @@ jsonObjectP()
 
   return (charP('{') > keyValues < charP('}')) & [](auto values) {
     std::map<std::shared_ptr<JsonString>, std::shared_ptr<JsonValue> > m{};
-    for (auto [key, value] : values)
-      m[key] = value;
+    m.insert(values.begin(), values.end());
     return std::shared_ptr<JsonValue>(new JsonObject(m));
   };
 }
