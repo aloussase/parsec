@@ -10,7 +10,7 @@ namespace parsec
 /**
  * Parse any one character.
  */
-Parser<char>
+static Parser<char>
 anyChar()
 {
   return satisfy([]([[maybe_unused]] char c) { return true; }, "any character");
@@ -19,7 +19,7 @@ anyChar()
 /**
  * Parse any character but the provided one.
  */
-Parser<char>
+static Parser<char>
 notChar(char charToNotMatch)
 {
   // clang-format off
@@ -31,7 +31,7 @@ notChar(char charToNotMatch)
 /**
  * Parse a single digit.
  */
-Parser<char>
+static Parser<char>
 digit()
 {
   return satisfy(isdigit, "digit");
@@ -40,7 +40,7 @@ digit()
 /**
  * Parse a sequence of digits into a string.
  */
-Parser<std::string>
+static Parser<std::string>
 digits()
 {
   return many1(digit()) & [](auto digits) {
@@ -51,7 +51,7 @@ digits()
 /**
  * Parse and decode an unsigned decimal number.
  */
-auto
+static auto
 decimal()
 {
   return digits() & [](const std::string& digits) {
@@ -62,7 +62,7 @@ decimal()
 /**
  * Parse an ascii letter, as per isalpha.
  */
-auto
+static auto
 letter()
 {
   return satisfy(isalpha, "letter");
@@ -71,7 +71,7 @@ letter()
 /**
  * Parse a space character, as per isspace.
  */
-auto
+static auto
 space()
 {
   return satisfy(isspace, "space");
