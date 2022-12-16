@@ -289,6 +289,26 @@ test_sepBy_works_with_invalid_input()
   assert(result.value().second == "AOC");
 }
 
+void
+test_takeWhile_works_with_valid_input()
+{
+  auto parser = takeWhile([](char c) { return c != '0'; });
+  auto result = parser.run("1234506789");
+  assert(result.isSuccess());
+  assert(result.value().first == std::vector({ '1', '2', '3', '4', '5' }));
+  assert(result.value().second == "6789");
+}
+
+void
+test_skipWhile_works_with_valid_input()
+{
+  auto parser = skipWhile([](char c) { return c != '0'; });
+  auto result = parser.run("1234506789");
+  assert(result.isSuccess());
+  assert(result.value().first == 0);
+  assert(result.value().second == "6789");
+}
+
 auto
 main() -> int
 {
@@ -311,6 +331,12 @@ main() -> int
   testMany1FailsWhenItCanMatchAtLeastOnce();
   testParsingWhitespace();
   testIgnoringTheRightResultWorks();
+
+  // takeWhile
+  test_takeWhile_works_with_valid_input();
+
+  // skipWhile
+  test_skipWhile_works_with_valid_input();
 
   // sepBy1
   test_sepBy1_works_with_valid_input();

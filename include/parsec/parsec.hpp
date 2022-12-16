@@ -424,6 +424,31 @@ sepBy(const Parser<T>& p, const Parser<Sep>& sep) noexcept
   return sepBy1(p, sep) | pure(std::list<T>{});
 }
 
+template <typename Pred>
+[[nodiscard]] auto
+takeWhile(Pred predicate) noexcept
+{
+  return Parser<std::vector<char> >(
+      "takeWhile",
+      [predicate](const std::string& input) -> Parser<std::vector<char> >::result_type {
+        std::string::size_type i = 0;
+        std::vector<char> result{};
+
+        for (; predicate(input[i]) && i < input.length(); i++)
+          result.push_back(input[i]);
+
+        return make_success(result, input.substr(i + 1));
+      });
+}
+
+template <typename Pred>
+[[nodiscard]] auto
+skipWhile(Pred predicate) noexcept
+{
+  // TODO: Use a less stupid value.
+  return takeWhile(predicate) >> pure(0);
+}
+
 /**
  * Run the second parser, ignoring the result of the first one
  * and returning the result of the second one.
