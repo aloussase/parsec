@@ -70,7 +70,7 @@ curry(F f)
 namespace convert
 {
 
-auto
+static inline auto
 tostring() noexcept
 {
   return [](auto it) {
