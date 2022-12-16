@@ -304,7 +304,7 @@ satisfy(P predicate, const std::string& label) noexcept
 /**
  * Parse a single character.
  */
-[[nodiscard]] static Parser<char>
+[[nodiscard]] static inline Parser<char>
 charP(char charToMatch) noexcept
 {
   // clang-format off
@@ -315,7 +315,7 @@ charP(char charToMatch) noexcept
 /**
  * Parse a string.
  */
-[[nodiscard]] Parser<std::string>
+[[nodiscard]] static inline Parser<std::string>
 stringP(const std::string& s)
 {
   auto label = "string \"" + s + "\"";
