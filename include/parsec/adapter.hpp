@@ -7,24 +7,22 @@
 namespace parsec
 {
 
+template <size_t N = 1, typename F>
+constexpr auto curry(F f);
+
 // FIXME: There must be a way to create a curry<N> template to
 // curry arbitrary functions.
 
-/**
- * C++ functor that can construct instances of any class
- * given the right arguments.
- */
-template <typename Class>
-class make
+template <typename Class, size_t NArgs>
+[[nodiscard]] constexpr auto
+make() noexcept
 {
-public:
-  template <typename... Args>
-  constexpr auto
-  operator()(Args&&... args) const
-  {
-    return Class{ std::forward<Args>(args)... };
-  }
-};
+  // clang-format off
+  return curry<NArgs>([](auto&&... args) {
+    return Class{ std::forward<decltype(args)>(args)... };
+  });
+  // clang-format on
+}
 
 template <typename F>
 auto
