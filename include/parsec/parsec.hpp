@@ -219,7 +219,7 @@ template <typename F, typename T>
 bind(const Parser<T>& p, F f) noexcept
 {
   using result_parser = typename std::result_of<F(T)>::type;
-  return result_parser([f, p](const std::string& input) -> result_parser::result_type {
+  return result_parser([f, p](const std::string& input) -> typename result_parser::result_type {
     auto result = p.run(input);
     if (result.isFailure()) return result.asError();
     auto [value, remainingInput] = result.value();
@@ -268,21 +268,21 @@ template <typename T>
 [[nodiscard]] constexpr auto
 sequence(const std::vector<Parser<T> >& parsers) noexcept
 {
-  return Parser<std::vector<T> >(
-      [parsers](const std::string& input) -> Parser<std::vector<T> >::result_type {
-        std::vector<T> results{};
-        std::string remaining = input;
+  return Parser<std::vector<T> >([parsers](const std::string& input) ->
+                                 typename Parser<std::vector<T> >::result_type {
+                                   std::vector<T> results{};
+                                   std::string remaining = input;
 
-        for (const auto& parser : parsers)
-          {
-            auto result = parser.run(remaining);
-            if (result.isFailure()) return result.asError();
-            results.push_back(result.value().first);
-            remaining = result.value().second;
-          }
+                                   for (const auto& parser : parsers)
+                                     {
+                                       auto result = parser.run(remaining);
+                                       if (result.isFailure()) return result.asError();
+                                       results.push_back(result.value().first);
+                                       remaining = result.value().second;
+                                     }
 
-        return make_success(results, remaining);
-      });
+                                   return make_success(results, remaining);
+                                 });
 }
 
 /**
@@ -424,6 +424,9 @@ sepBy(const Parser<T>& p, const Parser<Sep>& sep) noexcept
   return sepBy1(p, sep) | pure(std::list<T>{});
 }
 
+/**
+ * Return a parser that parses characters a long as the provided predicate holds true.
+ */
 template <typename Pred>
 [[nodiscard]] auto
 takeWhile(Pred predicate) noexcept
