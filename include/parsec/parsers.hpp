@@ -22,10 +22,8 @@ anyChar()
 static inline Parser<char>
 notChar(char charToNotMatch)
 {
-  // clang-format off
   return satisfy([charToNotMatch](char c) { return c != charToNotMatch; },
-                 "not char '"s + charToNotMatch + "'");
-  // clang-format on
+                 std::string("not char '") + charToNotMatch + "'");
 }
 
 /**

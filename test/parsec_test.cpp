@@ -157,7 +157,8 @@ testBuildingASimpleStructWorks()
   auto mkS = [](char a, char b, char c) {
     return S{ a, b, c };
   };
-  auto parser = curry3(mkS) % charP('a') * (charP(' ') >> charP('b')) * (charP(' ') >> charP('c'));
+  auto parser = curry3(mkS) % charP('a') * (charP(' ') >> charP('b'))
+                * (charP(' ') >> charP('c'));
 
   auto result = parser.run("a b c");
 
@@ -292,7 +293,9 @@ test_sepBy_works_with_invalid_input()
 void
 test_takeWhile_works_with_valid_input()
 {
-  auto parser = takeWhile([](char c) { return c != '0'; });
+  auto parser = takeWhile([](char c) {
+    return c != '0';
+  });
   auto result = parser.run("1234506789");
   assert(result.isSuccess());
   assert(result.value().first == std::vector({ '1', '2', '3', '4', '5' }));
@@ -302,10 +305,11 @@ test_takeWhile_works_with_valid_input()
 void
 test_skipWhile_works_with_valid_input()
 {
-  auto parser = skipWhile([](char c) { return c != '0'; });
+  auto parser = skipWhile([](char c) {
+    return c != '0';
+  });
   auto result = parser.run("1234506789");
   assert(result.isSuccess());
-  assert(result.value().first == 0);
   assert(result.value().second == "6789");
 }
 

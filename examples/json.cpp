@@ -131,7 +131,8 @@ jsonObjectP()
   auto mkKeyValue = [](auto key, auto value) {
     return std::pair{ std::static_pointer_cast<JsonString>(key), value };
   };
-  auto keyValue = curry<2>(mkKeyValue) % (jsonStringP() < (ws > charP(':') > ws)) * jsonValueP();
+  auto keyValue
+      = curry<Arity::Binary>(mkKeyValue) % (jsonStringP() < (ws > charP(':') > ws)) * jsonValueP();
   auto keyValues = many1((ws > keyValue < ws) | (ws > charP(',') > keyValue < ws));
 
   return (charP('{') > keyValues < charP('}')) & [](auto values) {
