@@ -1,113 +1,65 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <string>
 #include <utility>
 
 namespace parsec
 {
 
-// FIXME: There must be a way to create a curry<N> template to
-// curry arbitrary functions.
-
-/**
- * Function arity to be used as argument to the curry function template.
- *
- * Currently functions taking up to 5 arguments can be curried
- *
- */
-enum class Arity
+template <typename Class>
+struct all_args_factory
 {
-  Unary,
-  Binary,
-  Ternary,
-  NAry4,
-  NAry5
+public:
+  template <typename... Ts>
+  [[nodiscard]] static constexpr Class
+  create(const Ts&... args) noexcept
+  {
+    // The first argument is the initializer for this class,
+    // which is the superclass of Class.
+    return Class{ {}, args... };
+  }
 };
 
-template <typename Class, Arity Arity>
-[[nodiscard]] constexpr auto
-make() noexcept
+template <typename Class, typename... Ts>
+auto
+make()
 {
-  return curry<Arity>([](auto&&... args) {
-    return Class(std::forward<decltype(args)>(args)...);
-  });
+  return curry(std::function(&Class::template create<Ts...>));
 }
 
-template <typename F>
+template <typename R, typename A>
 auto
-curry1(F f)
+curry(std::function<R(A)> f)
 {
-  return [f](auto x) {
-    return f(x);
+  return [f](A a) {
+    return f(a);
   };
 }
 
-template <typename F>
+template <typename R, typename A, typename B>
 auto
-curry2(F f)
+curry(const std::function<R(A, B)>& f)
 {
-  return [f](auto x) {
-    return [f, x](auto y) {
-      return f(x, y);
+  return [f](A a) {
+    return [f, a](B b) {
+      return f(a, b);
     };
   };
 }
 
-template <typename F>
+template <typename R, typename A, typename B, typename C>
 auto
-curry3(F f)
+curry(std::function<R(A, B, C)> f)
 {
-  return [f](auto x) {
-    return [f, x](auto y) {
-      return [f, x, y](auto z) {
-        return f(x, y, z);
+  return [f](A a) {
+    return [f, a](B b) {
+      return [f, a, b](C c) {
+        return f(a, b, c);
       };
     };
   };
-}
-
-template <typename F>
-auto
-curry4(F f)
-{
-  return [f](auto x) {
-    return [f, x](auto y) {
-      return [f, x, y](auto z) {
-        return [f, x, y, z](auto w) {
-          return f(x, y, z, w);
-        };
-      };
-    };
-  };
-}
-
-template <typename F>
-auto
-curry5(F f)
-{
-  return [f](auto x) {
-    return [f, x](auto y) {
-      return [f, x, y](auto z) {
-        return [f, x, y, z](auto w) {
-          return [f, x, y, z, w](auto u) {
-            return f(x, y, z, w, u);
-          };
-        };
-      };
-    };
-  };
-}
-
-template <Arity N = Arity::Unary, typename F>
-constexpr auto
-curry(F f)
-{
-  if constexpr (N == Arity::Unary) return curry1(f);
-  if constexpr (N == Arity::Binary) return curry2(f);
-  if constexpr (N == Arity::Ternary) return curry3(f);
-  if constexpr (N == Arity::NAry4) return curry4(f);
-  if constexpr (N == Arity::NAry5) return curry5(f);
 }
 
 namespace convert
@@ -121,6 +73,6 @@ tostring() noexcept
   };
 }
 
-}
+} // namespace convert
 
-}
+} // namespace parsec

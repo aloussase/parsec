@@ -15,6 +15,9 @@ public:
   virtual std::string toString() const noexcept = 0;
 };
 
+template <typename T = JsonValue>
+using JsonPtr = std::shared_ptr<T>;
+
 class JsonNull : public JsonValue
 {
 public:
@@ -28,7 +31,10 @@ public:
 class JsonString : public JsonValue
 {
 public:
-  JsonString(const std::string& v) : value{ v } {}
+  JsonString(const std::string& v)
+      : value{ v }
+  {
+  }
 
   std::string
   toString() const noexcept override
@@ -42,7 +48,10 @@ public:
 class JsonNumber : public JsonValue
 {
 public:
-  JsonNumber(int v) : value{ v } {}
+  JsonNumber(int v)
+      : value{ v }
+  {
+  }
 
   std::string
   toString() const noexcept override
@@ -56,7 +65,10 @@ public:
 class JsonBool : public JsonValue
 {
 public:
-  JsonBool(bool v) : value{ v } {}
+  JsonBool(bool v)
+      : value{ v }
+  {
+  }
 
   std::string
   toString() const noexcept override
@@ -70,8 +82,7 @@ public:
 class JsonObject : public JsonValue
 {
 public:
-  JsonObject(
-      std::map<std::shared_ptr<JsonString>, std::shared_ptr<JsonValue> > v)
+  JsonObject(std::map<JsonPtr<JsonString>, JsonPtr<> > v)
       : value{ v }
   {
   }
@@ -93,22 +104,20 @@ public:
     return result;
   }
 
-  std::map<std::shared_ptr<JsonString>, std::shared_ptr<JsonValue> > value;
+  std::map<JsonPtr<JsonString>, JsonPtr<> > value;
 };
 
 auto
 jsonNullP()
 {
-  return stringP("null") >> pure(std::shared_ptr<JsonValue>{ new JsonNull });
+  return stringP("null") >> pure(JsonPtr<>{ new JsonNull });
 }
 
 auto
 jsonBoolP()
 {
-  return stringP("true")
-             >> pure(std::shared_ptr<JsonValue>{ new JsonBool(true) })
-         | stringP("false")
-               >> pure(std::shared_ptr<JsonValue>{ new JsonBool(false) });
+  return stringP("true") >> pure(JsonPtr<>{ new JsonBool(true) })
+       | stringP("false") >> pure(JsonPtr<>{ new JsonBool(false) });
 }
 
 auto
@@ -116,7 +125,7 @@ jsonStringP()
 {
   auto parser = charP('"') > many1(notChar('"')) < charP('"');
   return parser & convert::tostring() & [](std::string s) {
-    return std::shared_ptr<JsonValue>(new JsonString(s));
+    return JsonPtr<>(new JsonString(s));
   };
 }
 
@@ -124,37 +133,42 @@ auto
 jsonNumberP()
 {
   return decimal() & [](int i) {
-    return std::shared_ptr<JsonValue>(new JsonNumber(i));
+    return JsonPtr<>(new JsonNumber(i));
   };
 }
 
-Parser<std::shared_ptr<JsonValue> > jsonValueP() noexcept;
+Parser<JsonPtr<> > jsonValueP() noexcept;
 
-auto
+Parser<JsonPtr<> >
 jsonObjectP()
 {
   auto ws = many(space());
-  auto mkKeyValue = [](auto key, auto value) {
+
+  std::function mkKeyValue = [](JsonPtr<> key, JsonPtr<> value
+                             ) -> std::pair<JsonPtr<JsonString>, JsonPtr<> > {
     return std::pair{ std::static_pointer_cast<JsonString>(key), value };
   };
-  auto keyValue = curry<Arity::Binary>(mkKeyValue)
-                  % (jsonStringP() < (ws > charP(':') > ws)) * jsonValueP();
-  auto keyValues
-      = many1((ws > keyValue < ws) | (ws > charP(',') > keyValue < ws));
+
+  auto keyValue = curry(mkKeyValue) % (jsonStringP() < (ws > charP(':') > ws))
+                * jsonValueP();
+
+  auto keyValues = many1(
+      (ws > keyValue < ws) | (ws > charP(',') > keyValue < ws)
+  );
 
   return (charP('{') > keyValues < charP('}')) & [](auto values) {
-    std::map<std::shared_ptr<JsonString>, std::shared_ptr<JsonValue> > m{};
+    std::map<JsonPtr<JsonString>, JsonPtr<> > m{};
     m.insert(values.begin(), values.end());
-    return std::shared_ptr<JsonValue>(new JsonObject(m));
+    return JsonPtr<>(new JsonObject(m));
   };
 }
 
-Parser<std::shared_ptr<JsonValue> >
+Parser<JsonPtr<> >
 jsonValueP() noexcept
 {
-  return Parser<std::shared_ptr<JsonValue> >([](std::string_view input) {
+  return Parser<JsonPtr<> >([](std::string_view input) {
     auto parser = jsonNullP() | jsonNumberP() | jsonStringP() | jsonBoolP()
-                  | jsonObjectP();
+                | jsonObjectP();
     return parser.run(input);
   });
 }

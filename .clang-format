@@ -1,8 +1,20 @@
-BasedOnStyle: GNU
-SpaceBeforeParens: ControlStatements
-AlwaysBreakTemplateDeclarations: Yes
-PointerAlignment: Left
-ColumnLimit: 80
+AlignAfterOpenBracket: BlockIndent
+AlignOperands: AlignAfterOperator
+AllowAllParametersOfDeclarationOnNextLine: false
 AllowShortCaseLabelsOnASingleLine: true
 AllowShortIfStatementsOnASingleLine: true
-AllowShortLambdasOnASingleLine: None
+AllowShortLambdasOnASingleLine: Inline
+AlwaysBreakAfterDefinitionReturnType: All
+AlwaysBreakTemplateDeclarations: Yes
+BasedOnStyle: GNU
+BinPackArguments: false
+BinPackParameters: false
+BreakBeforeBinaryOperators: All
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeComma
+ColumnLimit: 80
+FixNamespaceComments: true
+# LambdaBodyIndentation: OuterScope
+PointerAlignment: Left
+SpaceBeforeParens: ControlStatements
+PenaltyBreakAssignment: 9999

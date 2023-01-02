@@ -154,10 +154,10 @@ testBuildingASimpleStructWorks()
     char a, b, c;
   };
 
-  auto mkS = [](char a, char b, char c) {
+  std::function mkS = [](const char& a, const char& b, const char& c) {
     return S{ a, b, c };
   };
-  auto parser = curry3(mkS) % charP('a') * (charP(' ') >> charP('b'))
+  auto parser = curry(mkS) % charP('a') * (charP(' ') >> charP('b'))
                 * (charP(' ') >> charP('c'));
 
   auto result = parser.run("a b c");
