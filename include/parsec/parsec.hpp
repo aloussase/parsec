@@ -12,10 +12,9 @@
 #include <numeric>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
-
-using namespace std::literals;
 
 namespace parsec
 {
@@ -119,8 +118,8 @@ template <typename T>
 class Parser
 {
 public:
-  using result_type = ParseResult<std::pair<T, std::string> >;
-  using function_type = std::function<result_type(const std::string&)>;
+  using result_type = ParseResult<std::pair<T, std::string_view> >;
+  using function_type = std::function<result_type(std::string_view)>;
 
   constexpr
   Parser(const function_type& f)
@@ -128,6 +127,7 @@ public:
   {
   }
 
+  constexpr
   Parser(const std::string& label, const function_type& f)
       : m_label{ label }, m_parselet(f)
   {
@@ -135,13 +135,13 @@ public:
 
   constexpr ~Parser() = default;
 
-  [[nodiscard]] std::string
+  [[nodiscard]] constexpr const std::string&
   getLabel() const noexcept
   {
     return m_label;
   }
 
-  Parser&
+  constexpr Parser&
   withLabel(const std::string& label) noexcept
   {
     m_label = label;
@@ -149,20 +149,20 @@ public:
   }
 
   [[nodiscard]] constexpr result_type
-  run(const std::string& input) const noexcept
+  run(std::string_view input) const noexcept
   {
     return m_parselet(input);
   }
 
   [[nodiscard]] constexpr std::optional<T>
-  runOptional(const std::string& input) const noexcept
+  runOptional(std::string_view input) const noexcept
   {
     if (auto result = run(input).asOpt(); result) return result->first;
     return std::nullopt;
   }
 
   [[nodiscard]] constexpr T
-  runThrowing(const std::string& input) const
+  runThrowing(std::string_view input) const
   {
     return run(input).value().first;
   }
@@ -174,7 +174,7 @@ private:
 
 template <typename T>
 constexpr auto
-make_success(const T& value, const std::string& input) noexcept
+make_success(const T& value, std::string_view input) noexcept
 {
   return Parser<T>::result_type::success(std::pair{ value, input });
 }
@@ -186,7 +186,7 @@ template <typename T>
 [[nodiscard]] constexpr auto
 pure(const T& value)
 {
-  return Parser<T>([value](const std::string& input) {
+  return Parser<T>([value](std::string_view input) {
     return make_success(value, input);
   });
 }
@@ -220,7 +220,7 @@ template <typename F, typename T>
 bind(const Parser<T>& p, F f) noexcept
 {
   using result_parser = typename std::result_of<F(T)>::type;
-  return result_parser([f, p](const std::string& input) ->
+  return result_parser([f, p](std::string_view input) ->
                        typename result_parser::result_type {
                          auto result = p.run(input);
                          if (result.isFailure()) return result.asError();
@@ -270,10 +270,10 @@ template <typename T>
 [[nodiscard]] constexpr auto
 sequence(const std::vector<Parser<T> >& parsers) noexcept
 {
-  auto parselet = [parsers](const std::string& input) ->
+  auto parselet = [parsers](std::string_view input) ->
       typename Parser<std::vector<T> >::result_type {
         std::vector<T> results{};
-        std::string remaining = input;
+        std::string_view remaining = input;
 
         for (const auto& parser : parsers)
           {
@@ -295,8 +295,8 @@ template <typename P>
 [[nodiscard]] auto
 satisfy(P predicate, const std::string& label) noexcept
 {
-  auto parselet = [predicate, label](
-                      const std::string& input) -> Parser<char>::result_type {
+  auto parselet = [predicate,
+                   label](std::string_view input) -> Parser<char>::result_type {
     if (input.empty()) return ParserError::create(label, "Empty input!");
     if (predicate(input[0])) return make_success(input[0], input.substr(1));
     return ParserError::create(label,
@@ -327,7 +327,7 @@ stringP(const std::string& s)
   auto label = "string \"" + s + "\"";
   return Parser<std::string>(
       label,
-      [s, label](const std::string& input) -> Parser<std::string>::result_type {
+      [s, label](std::string_view input) -> Parser<std::string>::result_type {
         if (auto pos = input.find(s); pos == 0)
           return make_success(s, input.substr(pos + s.length()));
         return ParserError::create(label, "Failed to parse string");
@@ -361,8 +361,8 @@ many(const Parser<T>& parser) noexcept
 {
   return Parser<std::list<T> >(
       std::string("many of ") + parser.getLabel(),
-      [parser](const std::string& input) {
-        std::string remaining = input;
+      [parser](std::string_view input) {
+        std::string_view remaining = input;
         std::list<T> xs{};
         while (1)
           {
@@ -433,13 +433,13 @@ sepBy(const Parser<T>& p, const Parser<Sep>& sep) noexcept
  * true.
  */
 template <typename Pred>
-[[nodiscard]] auto
+[[nodiscard]] constexpr auto
 takeWhile(Pred predicate) noexcept
 {
   return Parser<std::vector<char> >(
       "takeWhile",
       [predicate](
-          const std::string& input) -> Parser<std::vector<char> >::result_type {
+          std::string_view input) -> Parser<std::vector<char> >::result_type {
         std::string::size_type i = 0;
         std::vector<char> result{};
 
@@ -459,7 +459,7 @@ takeWhile(Pred predicate) noexcept
  *
  */
 template <typename Pred>
-[[nodiscard]] auto
+[[nodiscard]] constexpr auto
 skipWhile(Pred predicate) noexcept
 {
   return takeWhile(predicate) >> pure(std::nullopt);
@@ -511,7 +511,7 @@ template <typename T>
 operator|(const Parser<T>& p1, const Parser<T>& p2)
 {
   auto label = p1.getLabel() + " or " + p2.getLabel();
-  return Parser<T>(label, [p1, p2](const std::string& input) {
+  return Parser<T>(label, [p1, p2](std::string_view input) {
     auto result = p1.run(input);
     return result.isSuccess() ? result : p2.run(input);
   });

@@ -70,7 +70,11 @@ public:
 class JsonObject : public JsonValue
 {
 public:
-  JsonObject(std::map<std::shared_ptr<JsonString>, std::shared_ptr<JsonValue> > v) : value{ v } {}
+  JsonObject(
+      std::map<std::shared_ptr<JsonString>, std::shared_ptr<JsonValue> > v)
+      : value{ v }
+  {
+  }
 
   std::string
   toString() const noexcept override
@@ -101,8 +105,10 @@ jsonNullP()
 auto
 jsonBoolP()
 {
-  return stringP("true") >> pure(std::shared_ptr<JsonValue>{ new JsonBool(true) })
-         | stringP("false") >> pure(std::shared_ptr<JsonValue>{ new JsonBool(false) });
+  return stringP("true")
+             >> pure(std::shared_ptr<JsonValue>{ new JsonBool(true) })
+         | stringP("false")
+               >> pure(std::shared_ptr<JsonValue>{ new JsonBool(false) });
 }
 
 auto
@@ -131,9 +137,10 @@ jsonObjectP()
   auto mkKeyValue = [](auto key, auto value) {
     return std::pair{ std::static_pointer_cast<JsonString>(key), value };
   };
-  auto keyValue
-      = curry<Arity::Binary>(mkKeyValue) % (jsonStringP() < (ws > charP(':') > ws)) * jsonValueP();
-  auto keyValues = many1((ws > keyValue < ws) | (ws > charP(',') > keyValue < ws));
+  auto keyValue = curry<Arity::Binary>(mkKeyValue)
+                  % (jsonStringP() < (ws > charP(':') > ws)) * jsonValueP();
+  auto keyValues
+      = many1((ws > keyValue < ws) | (ws > charP(',') > keyValue < ws));
 
   return (charP('{') > keyValues < charP('}')) & [](auto values) {
     std::map<std::shared_ptr<JsonString>, std::shared_ptr<JsonValue> > m{};
@@ -145,8 +152,9 @@ jsonObjectP()
 Parser<std::shared_ptr<JsonValue> >
 jsonValueP() noexcept
 {
-  return Parser<std::shared_ptr<JsonValue> >([](const std::string& input) {
-    auto parser = jsonNullP() | jsonNumberP() | jsonStringP() | jsonBoolP() | jsonObjectP();
+  return Parser<std::shared_ptr<JsonValue> >([](std::string_view input) {
+    auto parser = jsonNullP() | jsonNumberP() | jsonStringP() | jsonBoolP()
+                  | jsonObjectP();
     return parser.run(input);
   });
 }
