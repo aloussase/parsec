@@ -142,12 +142,11 @@ jsonObjectP()
 {
   auto ws = many(space());
 
-  std::function mkKeyValue = [](JsonPtr<> key, JsonPtr<> value
-                             ) -> std::pair<JsonPtr<JsonString>, JsonPtr<> > {
+  auto mkKeyValue = [](auto key, auto value) {
     return std::pair{ std::static_pointer_cast<JsonString>(key), value };
   };
 
-  auto keyValue = curry(mkKeyValue) % (jsonStringP() < (ws > charP(':') > ws))
+  auto keyValue = curry2(mkKeyValue) % (jsonStringP() < (ws > charP(':') > ws))
                 * jsonValueP();
 
   auto keyValues = many1(

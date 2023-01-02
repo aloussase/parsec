@@ -8,13 +8,12 @@
 namespace parsec
 {
 
-template <typename Class>
+template <typename Class, typename... Ts>
 struct all_args_factory
 {
 public:
-  template <typename... Ts>
   [[nodiscard]] static constexpr Class
-  create(const Ts&... args) noexcept
+  init(const Ts&... args) noexcept
   {
     // The first argument is the initializer for this class,
     // which is the superclass of Class.
@@ -22,40 +21,33 @@ public:
   }
 };
 
-template <typename Class, typename... Ts>
-auto
-make()
+template <typename F>
+[[nodiscard]] constexpr auto
+curry1(const F& f) noexcept
 {
-  return curry(std::function(&Class::template create<Ts...>));
-}
-
-template <typename R, typename A>
-auto
-curry(std::function<R(A)> f)
-{
-  return [f](A a) {
+  return [f](const auto& a) {
     return f(a);
   };
 }
 
-template <typename R, typename A, typename B>
-auto
-curry(const std::function<R(A, B)>& f)
+template <typename F>
+[[nodiscard]] constexpr auto
+curry2(const F& f) noexcept
 {
-  return [f](A a) {
-    return [f, a](B b) {
+  return [f](const auto& a) {
+    return [f, a](const auto& b) {
       return f(a, b);
     };
   };
 }
 
-template <typename R, typename A, typename B, typename C>
-auto
-curry(std::function<R(A, B, C)> f)
+template <typename F>
+[[nodiscard]] constexpr auto
+curry3(const F& f) noexcept
 {
-  return [f](A a) {
-    return [f, a](B b) {
-      return [f, a, b](C c) {
+  return [f](const auto& a) {
+    return [f, a](const auto& b) {
+      return [f, a, b](const auto& c) {
         return f(a, b, c);
       };
     };
