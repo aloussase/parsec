@@ -10,33 +10,26 @@ See the `examples` folder for more.
 ```cpp
 #include <iostream>
 
-#include "parsec/adapter.hpp"
-#include "parsec/parsec.hpp"
-#include "parsec/parsers.hpp"
+#include "parsec/all.hpp"
 
 using namespace parsec;
 
-struct Person
+struct Person : public all_args_factory<Person>
 {
-  std::string name;
-  int age;
-
-  Person(const std::string& n, int a) : name{ n }, age{ a } {}
+  const std::string name;
+  const int age;
 };
 
 auto
 main() -> int
 {
-  // Make a word parser from provided primitives.
   auto wordP = many1(letter()) & convert::tostring();
-  // Create the person parser.
-  auto parser = curry<2>(make<Person>{}) % (wordP < charP(' ')) * decimal();
-  // Parse a person, throwing an exception if it fails.
+  auto parser = make<Person, std::string, int>() % (wordP < charP(' '))
+              * decimal();
   auto person = parser.runThrowing("Alexander 23");
   std::cout << person.name << " " << person.age << "\n";
   return 0;
-}
-```
+}```
 
 ## Usage
 

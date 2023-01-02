@@ -1,8 +1,6 @@
 #include <iostream>
 
-#include "parsec/adapter.hpp"
-#include "parsec/parsec.hpp"
-#include "parsec/parsers.hpp"
+#include "parsec/all.hpp"
 
 using namespace parsec;
 
